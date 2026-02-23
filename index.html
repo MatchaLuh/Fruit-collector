@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Catcher Pro</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #222;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+            border: 4px solid #fff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #player {
+            position: absolute;
+            bottom: 20px;
+            left: 175px;
+            width: 50px;
+            height: 30px;
+            background-color: #8B4513; /* Basket color */
+            border-radius: 0 0 20px 20px;
+            transition: transform 0.1s;
+        }
+
+        .fruit {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            pointer-events: none;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 10;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div>Score: <span id="score">0</span></div>
+            <div>Coins: <span id="coins">0</span></div>
+            <div>Missed: <span id="missed">0</span>/5</div>
+        </div>
+
+        <div id="player"></div>
+
+        <div id="start-screen" class="screen">
+            <h1>FRUIT CATCHER</h1>
+            <p>Use Left/Right Arrows to move</p>
+            <button onclick="startGame()">Start Game</button>
+        </div>
+
+        <div id="game-over-screen" class="screen hidden">
+            <h1>GAME OVER</h1>
+            <p>Final Score: <span id="final-score">0</span></p>
+            <p>Best Score: <span id="high-score">0</span></p>
+            <button onclick="startGame()">Try Again</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Game Configuration ---
+        const container = document.getElementById('game-container');
+        const player = document.getElementById('player');
+        const scoreEl = document.getElementById('score');
+        const coinsEl = document.getElementById('coins');
+        const missedEl = document.getElementById('missed');
+        
+        let score = 0;
+        let coins = 0;
+        let missed = 0;
+        let gameActive = false;
+        let playerX = 175;
+        let fallSpeed = 3;
+        let fruitInterval;
+
+        const fruitTypes = [
+            { color: 'red', value: 1, label: '🍎' },    // Apple
+            { color: 'yellow', value: 5, label: '🍌' }, // Banana
+            { color: 'purple', value: 10, label: '🍇' } // Grapes
+        ];
+
+        // --- Audio Simulation (Using Web Audio API to avoid external files) ---
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        function playCollectSound() {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.1);
+        }
+
+        // --- Movement Logic ---
+        document.addEventListener('keydown', (e) => {
+            if (!gameActive) return;
+            if (e.key === 'ArrowLeft' && playerX > 0) playerX -= 25;
+            if (e.key === 'ArrowRight' && playerX < 350) playerX += 25;
+            player.style.left = playerX + 'px';
+        });
+
+        // --- Core Functions ---
+        function startGame() {
+            // Reset variables
+            score = 0;
+            coins = 0;
+            missed = 0;
+            fallSpeed = 3;
+            gameActive = true;
+            
+            // UI Reset
+            scoreEl.innerText = score;
+            coinsEl.innerText = coins;
+            missedEl.innerText = missed;
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            // Clear existing fruits
+            document.querySelectorAll('.fruit').forEach(f => f.remove());
+
+            // Start Spawning
+            if(fruitInterval) clearInterval(fruitInterval);
+            fruitInterval = setInterval(createFruit, 1000);
+        }
+
+        function createFruit() {
+            if (!gameActive) return;
+
+            const fruit = document.createElement('div');
+            const type = fruitTypes[Math.floor(Math.random() * fruitTypes.length)];
+            
+            fruit.classList.add('fruit');
+            fruit.style.left = Math.random() * 370 + 'px';
+            fruit.style.top = '0px';
+            fruit.style.backgroundColor = type.color;
+            fruit.innerHTML = `<span style="font-size: 20px">${type.label}</span>`;
+            
+            container.appendChild(fruit);
+
+            let fruitPos = 0;
+            const moveFruit = setInterval(() => {
+                if (!gameActive) {
+                    clearInterval(moveFruit);
+                    fruit.remove();
+                    return;
+                }
+
+                fruitPos += fallSpeed;
+                fruit.style.top = fruitPos + 'px';
+
+                // Collision Detection
+                const fruitRect = fruit.getBoundingClientRect();
+                const playerRect = player.getBoundingClientRect();
+
+                if (
+                    fruitRect.bottom >= playerRect.top &&
+                    fruitRect.right >= playerRect.left &&
+                    fruitRect.left <= playerRect.right
+                ) {
+                    score++;
+                    coins += type.value;
+                    scoreEl.innerText = score;
+                    coinsEl.innerText = coins;
+                    playCollectSound();
+                    
+                    // Difficulty Scaling
+                    if (score % 5 === 0) fallSpeed += 0.5;
+                    
+                    clearInterval(moveFruit);
+                    fruit.remove();
+                }
+
+                // Missed Fruit
+                if (fruitPos > 600) {
+                    missed++;
+                    missedEl.innerText = missed;
+                    clearInterval(moveFruit);
+                    fruit.remove();
+                    if (missed >= 5) gameOver();
+                }
+            }, 20);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            clearInterval(fruitInterval);
+            
+            // Save Leaderboard (Local Storage)
+            const highScore = localStorage.getItem('highScore') || 0;
+            if (score > highScore) localStorage.setItem('highScore', score);
+
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('high-score').innerText = localStorage.getItem('highScore');
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
