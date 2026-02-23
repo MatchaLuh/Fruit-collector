@@ -1,0 +1,16 @@
+{
+  "name": "Fruit Catcher Pro",
+  "short_name": "FruitCatch",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#87CEEB",
+  "theme_color": "#4CAF50",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/415/415733.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
